@@ -20,7 +20,7 @@ def lambda_handler(event, context):
         if not text_for_polly:
             raise Exception('Bitte einen Text im text-Feld übergeben.')
 
-        viseme = polly_client.synthesize_speech(VoiceId='Hans',
+        viseme = polly_client.synthesize_speech(VoiceId=voice_id,
                                                 OutputFormat='json',
                                                 LanguageCode='de-DE',
                                                 Text=text_for_polly,
@@ -37,8 +37,6 @@ def lambda_handler(event, context):
             'statusCode': 200,
             'headers': {
                 'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': 'GET, OPTIONS'
             },
             'body': viseme_return,
         }
@@ -60,8 +58,6 @@ def lambda_handler(event, context):
             'body': api_exception_json,
             'headers': {
                 'Content-Type': 'application/json',
-                'isBase64Encoded': False,
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': 'GET, OPTIONS'
+                'isBase64Encoded': False
             }
         }

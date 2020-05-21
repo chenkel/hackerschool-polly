@@ -3,11 +3,12 @@ from __future__ import print_function
 import base64
 import json
 import traceback
+from random import randint
 
-import wave
 import boto3
 
 polly_client = boto3.client('polly')
+s3 = boto3.client('s3')
 
 
 def lambda_handler(event, context):
@@ -21,43 +22,31 @@ def lambda_handler(event, context):
             raise Exception('Bitte einen Text im text-Feld übergeben.')
 
         audio_response = polly_client.synthesize_speech(VoiceId=voice_id,
-                                                        OutputFormat='pcm',
+                                                        OutputFormat='mp3',
                                                         LanguageCode='de-DE',
                                                         Text=text_for_polly)
+        mp3_file_name = ''
         if 'AudioStream' in audio_response:
-            wave_file_path = '/tmp/speech.wav'
-            with wave.open(wave_file_path, 'wb') as wav_file:
-                wav_file.setparams((1, 2, 16000, 0, 'NONE', 'NONE'))
-                wav_file.writeframes(audio_response['AudioStream'].read())
+            mp3_file_name = str(randint(0, 10000000000)) + '.mp3'
+            mp3_file_path = '/tmp/' + mp3_file_name
 
-        with open("/tmp/speech.wav", "rb") as f:
-            s = base64.b64encode(f.read()).decode("utf-8")
+            with open(mp3_file_path, 'wb') as mp3_file:
+                mp3_file.write(audio_response['AudioStream'].read())
+            s3.upload_file(mp3_file_path, 'polly-hackerschool', 'stimme/' + mp3_file_name,
+                           ExtraArgs={'ACL': 'public-read'})
 
-        viseme = polly_client.synthesize_speech(VoiceId='Hans',
-                                                OutputFormat='json',
-                                                LanguageCode='de-DE',
-                                                Text=text_for_polly,
-                                                SpeechMarkTypes=['sentence', 'viseme', 'word'])
-
-        with open("/tmp/speech.json", "wb") as f:
-            returned_viseme = viseme['AudioStream'].read()
-            returned_viseme = returned_viseme.replace(b'\n', b',')
-            viseme_new = b"".join([b'[', returned_viseme, b']'])
-            viseme_new = viseme_new.replace(b',]', b']')
-            print(viseme_new)
-            f.write(viseme_new)
-
-        with open("/tmp/speech.json", "rb") as f:
-            v = base64.b64encode(f.read()).decode("utf-8")
-        return_body = json.dumps({'audio': s, 'viseme': v})
+        body_return = {
+            'audio_url': 'https://polly-hackerschool.s3.eu-central-1.amazonaws.com/stimme/' + str(mp3_file_name)}
 
         return {
             'statusCode': 200,
             'headers': {
                 'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, OPTIONS',
+                'isBase64Encoded': False,
             },
-            'isBase64Encoded': True,
-            'body': return_body,
+            'body': json.dumps(body_return)
         }
 
     except Exception as e:
@@ -77,6 +66,8 @@ def lambda_handler(event, context):
             'body': api_exception_json,
             'headers': {
                 'Content-Type': 'application/json',
-                'isBase64Encoded': False
+                'isBase64Encoded': False,
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, OPTIONS'
             }
         }
